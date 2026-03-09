@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Firstbase · Order Email Tool</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0f11;
+    --surface: #16181c;
+    --surface2: #1e2026;
+    --border: #2a2d35;
+    --accent: #4ade80;
+    --accent-dim: rgba(74,222,128,0.12);
+    --accent-mid: rgba(74,222,128,0.25);
+    --text: #e8eaed;
+    --muted: #6b7280;
+    --danger: #f87171;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    padding: 40px 24px;
+  }
+
+  .noise {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    opacity: 0.4;
+  }
+
+  .wrap { max-width: 720px; margin: 0 auto; position: relative; z-index: 1; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 48px;
+  }
+
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  .logo-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent);
+    animation: pulse 2.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%,100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .logo-text { font-size: 13px; font-weight: 500; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+
+  #auth-btn {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); font-family: 'DM Sans', sans-serif;
+    font-size: 13px; font-weight: 500; padding: 8px 16px;
+    border-radius: 8px; cursor: pointer; transition: all 0.2s;
+  }
+  #auth-btn:hover { border-color: var(--accent); color: var(--accent); }
+  #auth-btn.connected { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); cursor: default; }
+
+  .gmail-icon { width: 16px; height: 16px; }
+
+  h1 {
+    font-size: 32px; font-weight: 300; letter-spacing: -0.5px;
+    margin-bottom: 6px; line-height: 1.2;
+  }
+  h1 span { color: var(--accent); font-weight: 600; }
+
+  .subtitle { font-size: 14px; color: var(--muted); margin-bottom: 40px; }
+
+  /* Steps */
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    margin-bottom: 16px;
+    transition: border-color 0.2s;
+  }
+  .step.active { border-color: var(--accent); }
+  .step.done { border-color: var(--border); opacity: 0.6; }
+
+  .step-header {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+  }
+  .step-num {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--surface2); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted);
+    flex-shrink: 0;
+  }
+  .step.active .step-num { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+  .step.done .step-num { background: var(--accent); border-color: var(--accent); color: #000; }
+
+  .step-title { font-size: 15px; font-weight: 500; }
+
+  /* Upload */
+  .drop-zone {
+    border: 1.5px dashed var(--border);
+    border-radius: 8px; padding: 36px;
+    text-align: center; cursor: pointer;
+    transition: all 0.2s; position: relative;
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent); background: var(--accent-dim);
+  }
+  .drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .drop-icon { font-size: 28px; margin-bottom: 10px; }
+  .drop-label { font-size: 14px; color: var(--muted); }
+  .drop-label strong { color: var(--text); }
+
+  /* Select */
+  .select-wrap { position: relative; }
+  select {
+    width: 100%; padding: 11px 16px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); font-family: 'DM Sans', sans-serif;
+    font-size: 14px; border-radius: 8px; cursor: pointer;
+    appearance: none; outline: none; transition: border-color 0.2s;
+  }
+  select:focus { border-color: var(--accent); }
+  .select-arrow {
+    position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+    color: var(--muted); pointer-events: none; font-size: 11px;
+  }
+
+  /* Email preview */
+  .email-preview {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 20px;
+    font-family: 'DM Mono', monospace; font-size: 12.5px;
+    line-height: 1.8; color: #c9d1d9;
+    white-space: pre-wrap; word-break: break-word;
+    max-height: 320px; overflow-y: auto;
+  }
+
+  .email-preview::-webkit-scrollbar { width: 4px; }
+  .email-preview::-webkit-scrollbar-track { background: transparent; }
+  .email-preview::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* Order tags */
+  .order-count {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--accent-dim); border: 1px solid var(--accent-mid);
+    color: var(--accent); font-size: 12px; font-weight: 500;
+    padding: 3px 10px; border-radius: 20px; margin-bottom: 14px;
+  }
+
+  /* Input */
+  .input-row { display: flex; gap: 10px; }
+  input[type="email"] {
+    flex: 1; padding: 11px 16px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); font-family: 'DM Sans', sans-serif;
+    font-size: 14px; border-radius: 8px; outline: none;
+    transition: border-color 0.2s;
+  }
+  input[type="email"]:focus { border-color: var(--accent); }
+  input[type="email"]::placeholder { color: var(--muted); }
+
+  .btn {
+    padding: 11px 22px; border-radius: 8px; border: none;
+    font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500;
+    cursor: pointer; transition: all 0.2s; white-space: nowrap;
+  }
+  .btn-primary {
+    background: var(--accent); color: #000;
+  }
+  .btn-primary:hover { background: #86efac; }
+  .btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--surface2); border: 1px solid var(--border);
+    padding: 12px 20px; border-radius: 10px;
+    font-size: 13px; font-weight: 500;
+    opacity: 0; transition: all 0.3s; pointer-events: none;
+    z-index: 100; white-space: nowrap;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #toast.success { border-color: var(--accent); color: var(--accent); }
+  #toast.error { border-color: var(--danger); color: var(--danger); }
+
+  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+  .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; font-weight: 500; }
+
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid rgba(0,0,0,0.2); border-top-color: #000;
+    border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="noise"></div>
+<div class="wrap">
+
+  <header>
+    <div class="logo">
+      <div class="logo-dot"></div>
+      <span class="logo-text">Firstbase · Order Tool</span>
+    </div>
+    <button id="auth-btn" onclick="handleAuth()">
+      <svg class="gmail-icon" viewBox="0 0 24 24" fill="none">
+        <path d="M22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6z" fill="#EA4335" opacity=".3"/>
+        <path d="M22 6l-10 7L2 6" stroke="#EA4335" stroke-width="1.5"/>
+      </svg>
+      Connect Gmail
+    </button>
+  </header>
+
+  <h1>Order <span>Assignment</span><br>Email Tool</h1>
+  <p class="subtitle">Upload a CSV, pick an assignee, and send the notification email via Gmail.</p>
+
+  <!-- Step 1: Upload -->
+  <div class="step active" id="step1">
+    <div class="step-header">
+      <div class="step-num">1</div>
+      <span class="step-title">Upload CSV</span>
+    </div>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" accept=".csv" id="csvInput" onchange="handleFile(this.files[0])">
+      <div class="drop-icon">📂</div>
+      <div class="drop-label"><strong>Choose a file</strong> or drag & drop</div>
+      <div class="drop-label" style="font-size:12px;margin-top:4px;">CSV exports only</div>
+    </div>
+  </div>
+
+  <!-- Step 2: Pick assignee -->
+  <div class="step" id="step2">
+    <div class="step-header">
+      <div class="step-num">2</div>
+      <span class="step-title">Select Assignee</span>
+    </div>
+    <div class="label">Assigned To</div>
+    <div class="select-wrap">
+      <select id="assigneeSelect" onchange="generateEmail()" disabled>
+        <option value="">— Upload a CSV first —</option>
+      </select>
+      <span class="select-arrow">▼</span>
+    </div>
+  </div>
+
+  <!-- Step 3: Preview -->
+  <div class="step" id="step3">
+    <div class="step-header">
+      <div class="step-num">3</div>
+      <span class="step-title">Email Preview</span>
+    </div>
+    <div id="orderCount" class="order-count" style="display:none">
+      <span>●</span> <span id="countText"></span>
+    </div>
+    <div class="email-preview" id="emailPreview" style="color:var(--muted);font-style:italic;">
+Select an assignee to generate the email…</div>
+  </div>
+
+  <!-- Step 4: Send -->
+  <div class="step" id="step4">
+    <div class="step-header">
+      <div class="step-num">4</div>
+      <span class="step-title">Send Email</span>
+    </div>
+    <div class="label">Recipient email address</div>
+    <div class="input-row">
+      <input type="email" id="toEmail" placeholder="e.g. partner@systemsgo.com">
+      <button class="btn btn-primary" id="sendBtn" onclick="sendEmail()" disabled>Send via Gmail</button>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-top:10px;" id="authNote">
+      ⚠ Connect Gmail first using the button in the top-right corner.
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+const CLIENT_ID = '336255594294-s3jck1ch5njsdc8908qr6vf6shhlkviq.apps.googleusercontent.com';
+const SCOPES = 'https://www.googleapis.com/auth/gmail.send';
+
+let tokenClient;
+let accessToken = null;
+let csvData = [];
+let emailBody = '';
+let selectedAssignee = '';
+
+// ── Auth ──────────────────────────────────────────────────────────────
+window.onload = () => {
+  google.accounts.id.initialize({ client_id: CLIENT_ID });
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: (resp) => {
+      if (resp.error) { showToast('Auth failed: ' + resp.error, 'error'); return; }
+      accessToken = resp.access_token;
+      document.getElementById('auth-btn').textContent = '✓ Gmail Connected';
+      document.getElementById('auth-btn').classList.add('connected');
+      document.getElementById('authNote').style.display = 'none';
+      updateSendBtn();
+      showToast('Gmail connected!', 'success');
+    }
+  });
+};
+
+function handleAuth() {
+  if (accessToken) return;
+  tokenClient.requestAccessToken();
+}
+
+// ── File handling ─────────────────────────────────────────────────────
+function handleFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    csvData = parseCSV(e.target.result);
+    populateAssignees();
+    document.getElementById('step1').classList.remove('active');
+    document.getElementById('step1').classList.add('done');
+    document.getElementById('step1').querySelector('.step-num').textContent = '✓';
+    document.getElementById('step2').classList.add('active');
+    document.getElementById('dropZone').querySelector('.drop-label').innerHTML =
+      `<strong style="color:var(--accent)">✓ ${file.name}</strong> loaded`;
+  };
+  reader.readAsText(file);
+}
+
+// Drag & drop
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag-over');
+  handleFile(e.dataTransfer.files[0]);
+});
+
+// ── CSV parser ────────────────────────────────────────────────────────
+function parseCSV(text) {
+  // Remove BOM
+  text = text.replace(/^\uFEFF/, '');
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  const headers = splitCSVLine(lines[0]);
+  return lines.slice(1).map(line => {
+    const vals = splitCSVLine(line);
+    const obj = {};
+    headers.forEach((h, i) => obj[h.trim()] = (vals[i] || '').trim());
+    return obj;
+  });
+}
+
+function splitCSVLine(line) {
+  const result = []; let cur = ''; let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { inQ = !inQ; continue; }
+    if (c === ',' && !inQ) { result.push(cur); cur = ''; continue; }
+    cur += c;
+  }
+  result.push(cur);
+  return result;
+}
+
+// ── Populate dropdown ─────────────────────────────────────────────────
+function populateAssignees() {
+  const sel = document.getElementById('assigneeSelect');
+  const assignees = [...new Set(csvData.map(r => r['Assigned to']).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">— Select an assignee —</option>';
+  assignees.forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a; opt.textContent = a;
+    if (a === 'SystemsGo') opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.disabled = false;
+  generateEmail();
+}
+
+// ── Generate email ────────────────────────────────────────────────────
+function generateEmail() {
+  selectedAssignee = document.getElementById('assigneeSelect').value;
+  const preview = document.getElementById('emailPreview');
+  const countEl = document.getElementById('orderCount');
+  const countText = document.getElementById('countText');
+
+  if (!selectedAssignee) {
+    preview.style.color = 'var(--muted)';
+    preview.style.fontStyle = 'italic';
+    preview.textContent = 'Select an assignee to generate the email…';
+    countEl.style.display = 'none';
+    emailBody = '';
+    updateSendBtn();
+    return;
+  }
+
+  const orders = csvData.filter(r => r['Assigned to'] === selectedAssignee);
+
+  if (!orders.length) {
+    preview.textContent = 'No orders found for this assignee.';
+    countEl.style.display = 'none';
+    emailBody = '';
+    updateSendBtn();
+    return;
+  }
+
+  countEl.style.display = 'inline-flex';
+  countText.textContent = `${orders.length} order${orders.length > 1 ? 's' : ''} found`;
+
+  let orderLines = '';
+  orders.forEach((o, i) => {
+    orderLines += `Order ${i + 1}:
+  • Organisation: ${o['Organization name'] || '—'}
+  • Order ID:     ${o['Order ID'] || '—'}
+  • Recipient:    ${o['Recipient'] || '—'}
+  • Product:      ${o['Product title'] || '—'}
+`;
+    if (i < orders.length - 1) orderLines += '\n';
+  });
+
+  emailBody = `Hi ${selectedAssignee} team,
+
+The following order${orders.length > 1 ? 's have' : ' has'} been assigned to you:
+
+${orderLines}
+Please process ${orders.length > 1 ? 'these orders' : 'this order'} at your earliest convenience.
+
+Thanks,
+Firstbase Operations`;
+
+  preview.style.color = '#c9d1d9';
+  preview.style.fontStyle = 'normal';
+  preview.textContent = emailBody;
+
+  document.getElementById('step3').classList.add('active');
+  document.getElementById('step4').classList.add('active');
+  updateSendBtn();
+}
+
+// ── Send email ────────────────────────────────────────────────────────
+function updateSendBtn() {
+  const btn = document.getElementById('sendBtn');
+  const to = document.getElementById('toEmail').value.trim();
+  btn.disabled = !(accessToken && emailBody && to);
+}
+
+document.getElementById('toEmail').addEventListener('input', updateSendBtn);
+
+async function sendEmail() {
+  const to = document.getElementById('toEmail').value.trim();
+  if (!to || !emailBody || !accessToken) return;
+
+  const btn = document.getElementById('sendBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Sending…';
+
+  const subject = `Order Assignment — ${selectedAssignee}`;
+  const raw = makeRawEmail(to, subject, emailBody);
+
+  try {
+    const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ raw })
+    });
+
+    if (res.ok) {
+      showToast('Email sent successfully!', 'success');
+      btn.textContent = '✓ Sent';
+      btn.style.background = 'var(--accent-dim)';
+      btn.style.color = 'var(--accent)';
+      btn.style.border = '1px solid var(--accent)';
+    } else {
+      const err = await res.json();
+      throw new Error(err.error?.message || 'Unknown error');
+    }
+  } catch (e) {
+    showToast('Send failed: ' + e.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Send via Gmail';
+  }
+}
+
+function makeRawEmail(to, subject, body) {
+  const msg = [
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    'Content-Type: text/plain; charset=utf-8',
+    'MIME-Version: 1.0',
+    '',
+    body
+  ].join('\r\n');
+
+  return btoa(unescape(encodeURIComponent(msg)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show ' + type;
+  setTimeout(() => t.className = '', 3000);
+}
+</script>
+</body>
+</html>
